@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: scoring
+    scrape_interval: 1s
+    static_configs:
+      - targets: ["scoring:8000"]
+
+  - job_name: writer
+    scrape_interval: 1s
+    static_configs:
+      - targets: ["writer:8001"]
+
+  - job_name: node
+    scrape_interval: 5s
+    static_configs:
+      - targets: ["node-exporter:9100"]

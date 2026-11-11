@@ -1,0 +1,88 @@
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.1
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    depends_on: [zookeeper]
+    ports: ["9092:9092"]
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: fraud
+      POSTGRES_PASSWORD: fraud
+      POSTGRES_DB: fraud
+    ports: ["5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  scoring:
+    build: ./scoring
+    depends_on: [kafka]
+    environment:
+      KAFKA_BOOTSTRAP: kafka:29092
+      INPUT_TOPIC: transactions
+      OUTPUT_TOPIC: scores
+      MODEL_PATH: /app/model.pkl
+      METRICS_PORT: "8000"
+    ports: ["8000:8000"]
+    volumes:
+      - ./scoring:/app
+
+  writer:
+    build: ./writer
+    depends_on: [kafka, postgres]
+    environment:
+      KAFKA_BOOTSTRAP: kafka:29092
+      INPUT_TOPIC: scores
+      PG_DSN: postgresql://fraud:fraud@postgres:5432/fraud
+      METRICS_PORT: "8001"
+    ports: ["8001:8001"]
+    volumes:
+      - ./writer:/app
+
+  producer:
+    build: ./producer
+    depends_on: [kafka]
+    environment:
+      KAFKA_BOOTSTRAP: kafka:29092
+      TOPIC: transactions
+      RATE: "20"
+    volumes:
+      - ./producer:/app
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    depends_on: [scoring, writer]
+    ports: ["9090:9090"]
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    depends_on: [prometheus, postgres]
+    ports: ["3000:3000"]
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    ports: ["9100:9100"]
+
+volumes:
+  pgdata:

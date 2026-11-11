@@ -1,0 +1,82 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: fraud-scoring
+    folder: Alerts
+    interval: 30s
+    rules:
+      - uid: high-fraud-share
+        title: HighFraudShare
+        condition: A
+        for: 1m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: warning
+        annotations:
+          summary: "Доля фрода выше 25%"
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              expr: scoring_fraud_share > 0.25
+              instant: true
+              range: false
+              datasource:
+                type: prometheus
+                uid: prometheus
+
+      - uid: stream-stopped
+        title: ScoringStreamStopped
+        condition: A
+        for: 30s
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: critical
+        annotations:
+          summary: "Поток скоринга остановился"
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              expr: rate(scoring_transactions_total[1m]) == 0
+              instant: true
+              range: false
+              datasource:
+                type: prometheus
+                uid: prometheus
+
+      - uid: slow-scoring
+        title: SlowScoringP95
+        condition: A
+        for: 1m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: warning
+        annotations:
+          summary: "p95 времени обработки выше 500 мс"
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              expr: histogram_quantile(0.95, sum(rate(scoring_processing_seconds_bucket[1m])) by (le)) > 0.5
+              instant: true
+              range: false
+              datasource:
+                type: prometheus
+                uid: prometheus

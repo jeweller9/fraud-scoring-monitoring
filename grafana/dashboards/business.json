@@ -1,0 +1,337 @@
+{
+  "uid": "business",
+  "title": "Business — скоры, фрод, срезы",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "editable": true,
+  "annotations": {
+    "list": []
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "state",
+        "label": "US State",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "postgres"
+        },
+        "query": "SELECT DISTINCT us_state FROM scored_transactions WHERE us_state IS NOT NULL ORDER BY 1",
+        "includeAll": true,
+        "multi": true,
+        "refresh": 1,
+        "sort": 1,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": []
+      },
+      {
+        "name": "merch",
+        "label": "Merchant",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "postgres"
+        },
+        "query": "SELECT DISTINCT merch FROM scored_transactions WHERE merch IS NOT NULL ORDER BY 1",
+        "includeAll": true,
+        "multi": true,
+        "refresh": 1,
+        "sort": 1,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": []
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "table",
+      "title": "Скоры и доля фрода по версии модели",
+      "datasource": {
+        "type": "postgres",
+        "uid": "postgres"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT model_version, count(*) AS scores, round((avg(is_fraud::int) * 100)::numeric, 2) AS fraud_pct FROM scored_transactions WHERE $__timeFilter(created_at) GROUP BY model_version ORDER BY model_version",
+          "rawQuery": true
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "fraud_pct"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "type": "barchart",
+      "title": "Плотность распределения скоров (фильтры: state, merch)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "postgres"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT round(floor(score * 10)::int::numeric / 10, 1) AS bucket, count(*) AS count FROM scored_transactions WHERE $__timeFilter(created_at) AND us_state IN ($state) AND merch IN ($merch) GROUP BY bucket ORDER BY bucket",
+          "rawQuery": true
+        }
+      ],
+      "options": {
+        "orientation": "vertical",
+        "xField": "bucket",
+        "showValue": "auto",
+        "legend": {
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "gradientMode": "scheme"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "count"
+            },
+            "properties": [
+              {
+                "id": "custom.gradientMode",
+                "value": "opacity"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-GrYlRd"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "TPS по выбранным транзакциям (фильтры: state, merch)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "postgres"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT $__timeGroup(created_at, '1m') AS time, count(*) / 60.0 AS tps FROM scored_transactions WHERE $__timeFilter(created_at) AND us_state IN ($state) AND merch IN ($merch) GROUP BY 1 ORDER BY 1",
+          "rawQuery": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 15
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "barchart",
+      "title": "Средняя доля фрода по cat_id (последние 1000 транзакций)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "postgres"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 14
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "WITH last1000 AS (SELECT cat_id, is_fraud FROM scored_transactions ORDER BY created_at DESC LIMIT 1000) SELECT cat_id::text AS cat_id, round((avg(is_fraud::int) * 100)::numeric, 2) AS fraud_pct FROM last1000 GROUP BY cat_id ORDER BY cat_id",
+          "rawQuery": true
+        }
+      ],
+      "options": {
+        "orientation": "vertical",
+        "xField": "cat_id",
+        "showValue": "auto",
+        "legend": {
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "gradientMode": "opacity"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "fraud_pct"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-RdYlGr"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 5,
+      "type": "barchart",
+      "title": "Бизнес-инсайт: доля фрода по сумме транзакции",
+      "description": "Показывает, в каких суммовых корзинах чаще встречается фрод — помогает настроить пороги и правила ручного ревью.",
+      "datasource": {
+        "type": "postgres",
+        "uid": "postgres"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 14
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "WITH buckets AS (SELECT CASE WHEN amount < 50 THEN 'a. 0-50' WHEN amount < 100 THEN 'b. 50-100' WHEN amount < 200 THEN 'c. 100-200' WHEN amount < 500 THEN 'd. 200-500' ELSE 'e. 500+' END AS amount_bucket, is_fraud FROM scored_transactions WHERE $__timeFilter(created_at) AND us_state IN ($state) AND merch IN ($merch)) SELECT amount_bucket, round((avg(is_fraud::int) * 100)::numeric, 2) AS fraud_pct FROM buckets GROUP BY amount_bucket ORDER BY amount_bucket",
+          "rawQuery": true
+        }
+      ],
+      "options": {
+        "orientation": "vertical",
+        "xField": "amount_bucket",
+        "showValue": "auto",
+        "legend": {
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "gradientMode": "opacity"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "fraud_pct"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-RdYlGr"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
