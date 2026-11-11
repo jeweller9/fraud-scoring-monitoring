@@ -16,7 +16,7 @@
 
 | Сервис | URL |
 |---|---|
-| **Grafana** | http://localhost:3000 |
+| **Grafana** | http://localhost:3000 (admin/admin) | 
 | **Prometheus** | http://localhost:9090 |
 | **Scoring /metrics** | http://localhost:8000/metrics | 
 | **Writer /metrics** | http://localhost:8001/metrics | 
